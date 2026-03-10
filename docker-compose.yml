@@ -1,0 +1,266 @@
+version: "3.9"
+
+# ============================================================
+# QFL Platform — Full Stack
+# ============================================================
+# Services:
+#   coordinator   — FastAPI FL orchestrator
+#   client_01/02/03 — Mock FL clients (tenant isolation)
+#   postgres      — Audit log + round state persistence
+#   redis         — Round state cache
+#   prometheus    — Metrics scraping
+#   grafana       — Dashboards
+#   nginx         — Reverse proxy / CDN layer
+# ============================================================
+
+x-common-env: &common-env
+  LOG_LEVEL: INFO
+  POSTGRES_DSN: postgresql+asyncpg://qfl:qfl_secret@postgres:5432/qfldb
+  REDIS_URL: redis://redis:6379/0
+  IBM_QUANTUM_TOKEN: ${IBM_QUANTUM_TOKEN:-}
+
+x-client-base: &client-base
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.client
+  depends_on:
+    - coordinator
+    - redis
+  restart: unless-stopped
+  networks:
+    - qfl_internal
+  security_opt:
+    - no-new-privileges:true
+  read_only: true
+  tmpfs:
+    - /tmp
+
+services:
+  # ----------------------------------------------------------
+  # Coordinator (FastAPI)
+  # ----------------------------------------------------------
+  coordinator:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.coordinator
+    image: qfl-coordinator:latest
+    container_name: qfl_coordinator
+    environment:
+      <<: *common-env
+      SERVICE_NAME: coordinator
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - qfl_internal
+      - qfl_external
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  # ----------------------------------------------------------
+  # FL Clients (3 tenants, namespace isolation via networks)
+  # ----------------------------------------------------------
+  client_01:
+    <<: *client-base
+    container_name: qfl_client_01
+    environment:
+      <<: *common-env
+      CLIENT_ID: client_01
+      TENANT_ID: tenant_a
+      COORDINATOR_URL: http://coordinator:8000
+    networks:
+      - qfl_internal
+      - tenant_a_net
+
+  client_02:
+    <<: *client-base
+    container_name: qfl_client_02
+    environment:
+      <<: *common-env
+      CLIENT_ID: client_02
+      TENANT_ID: tenant_b
+      COORDINATOR_URL: http://coordinator:8000
+    networks:
+      - qfl_internal
+      - tenant_b_net
+
+  client_03:
+    <<: *client-base
+    container_name: qfl_client_03
+    environment:
+      <<: *common-env
+      CLIENT_ID: client_03
+      TENANT_ID: tenant_c
+      COORDINATOR_URL: http://coordinator:8000
+    networks:
+      - qfl_internal
+      - tenant_c_net
+
+  # ----------------------------------------------------------
+  # PostgreSQL — Audit log + round persistence
+  # ----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: qfl_postgres
+    environment:
+      POSTGRES_DB: qfldb
+      POSTGRES_USER: qfl
+      POSTGRES_PASSWORD: qfl_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - qfl_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qfl -d qfldb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  # ----------------------------------------------------------
+  # Redis — Round state + rate limiting
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: qfl_redis
+    command: redis-server --requirepass redis_secret --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - qfl_internal
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ----------------------------------------------------------
+  # Prometheus — Metrics
+  # ----------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: qfl_prometheus
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    networks:
+      - qfl_internal
+      - qfl_external
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Grafana — Dashboards
+  # ----------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: qfl_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - qfl_internal
+      - qfl_external
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  # ----------------------------------------------------------
+  # Nginx — Reverse proxy + rate limiting (CDN layer)
+  # ----------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: qfl_nginx
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - coordinator
+    networks:
+      - qfl_external
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+# ----------------------------------------------------------
+# Networks — tenant isolation
+# ----------------------------------------------------------
+networks:
+  qfl_internal:
+    driver: bridge
+    internal: true
+  qfl_external:
+    driver: bridge
+  tenant_a_net:
+    driver: bridge
+    internal: true
+  tenant_b_net:
+    driver: bridge
+    internal: true
+  tenant_c_net:
+    driver: bridge
+    internal: true
+
+# ----------------------------------------------------------
+# Volumes — persistent data
+# ----------------------------------------------------------
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

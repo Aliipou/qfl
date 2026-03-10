@@ -1,0 +1,95 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/alipourrahim/qfl-platform/qfl-coordinator
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: qfl.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: qfl-tls
+      hosts:
+        - qfl.example.com
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 2Gi
+  requests:
+    cpu: "500m"
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+env:
+  LOG_LEVEL: INFO
+  PORT: "8000"
+
+secrets:
+  postgresPassword: ""
+  redisPassword: ""
+  ibmQuantumToken: ""
+
+postgresql:
+  enabled: true
+  auth:
+    database: qfldb
+    username: qfl
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+
+serviceAccount:
+  create: true
+  name: qfl-coordinator
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: true
+  # Only allow coordinator → postgres + redis
+  # Block inter-tenant traffic
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 10

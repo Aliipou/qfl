@@ -1,0 +1,143 @@
+# ============================================================
+# QFL Platform — Kubernetes NetworkPolicies
+# Enforces tenant isolation: tenants cannot reach each other.
+# Only coordinator → tenant allowed.
+# ============================================================
+
+---
+# Default deny all ingress/egress in qfl namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: qfl
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# Allow coordinator to receive external traffic (Ingress)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-coordinator-ingress
+  namespace: qfl
+spec:
+  podSelector:
+    matchLabels:
+      app: qfl-coordinator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+
+---
+# Allow coordinator egress to postgres and redis only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coordinator-egress
+  namespace: qfl
+spec:
+  podSelector:
+    matchLabels:
+      app: qfl-coordinator
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+
+---
+# Tenant A — isolated namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-a-isolation
+  namespace: tenant-a
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: qfl
+          podSelector:
+            matchLabels:
+              app: qfl-coordinator
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: qfl
+          podSelector:
+            matchLabels:
+              app: qfl-coordinator
+      ports:
+        - protocol: TCP
+          port: 8000
+    - ports:
+        - protocol: UDP
+          port: 53
+
+---
+# Repeat for tenant-b (identical structure)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-b-isolation
+  namespace: tenant-b
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: qfl
+          podSelector:
+            matchLabels:
+              app: qfl-coordinator
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: qfl
+          podSelector:
+            matchLabels:
+              app: qfl-coordinator
+      ports:
+        - protocol: TCP
+          port: 8000
+    - ports:
+        - protocol: UDP
+          port: 53

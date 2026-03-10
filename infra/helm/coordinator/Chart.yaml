@@ -1,0 +1,14 @@
+apiVersion: v2
+name: qfl-coordinator
+description: QFL Platform — FL Coordinator Helm chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Ali Pourrahim
+    email: ali.pourrahim@centria.fi
+keywords:
+  - quantum
+  - federated-learning
+  - eu-ai-act
+  - gdpr
