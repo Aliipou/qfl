@@ -1,0 +1,59 @@
+% ============================================================
+% QFL Platform — Auto-generated benchmark tables
+% Generated: 2026-03-11 00:04 UTC
+% ============================================================
+
+% ---- Table 1: Algorithm Comparison (paste into paper) -----
+\begin{table}[h]
+\centering
+\caption{Federated Learning Algorithm Comparison on MNIST (non-IID, $\alpha=0.5$)}
+\label{tab:algorithm-comparison}
+\begin{tabular}{lcccc}
+\toprule
+Algorithm & $\varepsilon$ & Peak Acc. (\%) & Rounds to 90\% & Comm. (MB) \\
+\midrule
+FedAvg & $\infty$ & 72.10 & $>$5 & 12.20 \\
+FedAvg & 10.0 & 52.00 & $>$5 & 12.20 \\
+FedAvg & 1.0 & 55.50 & $>$5 & 12.20 \\
+FedAvg & 0.5 & 55.60 & $>$5 & 12.20 \\
+q-FedAvg & $\infty$ & 71.80 & $>$5 & 12.20 \\
+q-FedAvg & 1.0 & 52.30 & $>$5 & 12.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- Table 2: Privacy-Utility Tradeoff -------------------
+\begin{table}[h]
+\centering
+\caption{Privacy-Utility Tradeoff: FedAvg with Differential Privacy ($\delta=10^{-5}$)}
+\label{tab:privacy-tradeoff}
+\begin{tabular}{ccc}
+\toprule
+$\varepsilon$ & Peak Accuracy (\%) & Total $\varepsilon$ Consumed \\
+\midrule
+$\infty$ & 72.10 & 0.0 \\
+10.0 & 52.00 & 50.0 \\
+1.0 & 55.50 & 5.0 \\
+0.5 & 55.60 & 2.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- Table 3: Communication Cost -------------------------
+\begin{table}[h]
+\centering
+\caption{Communication Cost per FL Round (3 clients, 784-dim model)}
+\label{tab:comm-cost}
+\begin{tabular}{lccc}
+\toprule
+Algorithm & $\varepsilon$ & Total Comm. (MB) & Comm./Round (MB) \\
+\midrule
+FedAvg & $\infty$ & 12.20 & 2.4408 \\
+FedAvg & 10.0 & 12.20 & 2.4408 \\
+FedAvg & 1.0 & 12.20 & 2.4408 \\
+FedAvg & 0.5 & 12.20 & 2.4408 \\
+q-FedAvg & $\infty$ & 12.20 & 2.4408 \\
+q-FedAvg & 1.0 & 12.20 & 2.4408 \\
+\bottomrule
+\end{tabular}
+\end{table}

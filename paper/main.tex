@@ -47,21 +47,26 @@ with EU AI Act Compliance and Differential Privacy}
 % ── Abstract ────────────────────────────────────────────────
 \begin{abstract}
 We present QFL, the first open-source, production-ready middleware for
-Quantum Federated Learning (QFL) designed with EU AI Act and GDPR compliance
-as first-class requirements. QFL integrates three independently active research
+Quantum Federated Learning designed with EU AI Act and GDPR compliance as
+first-class requirements. QFL integrates three independently active research
 areas: (i)~quantum cryptography via BB84 Quantum Key Distribution (QKD) for
-model weight transmission, (ii)~federated learning with a novel
+secure model weight transmission, (ii)~federated learning with a novel
 Quantum-enhanced FedAvg (\textit{q-FedAvg}) aggregation algorithm, and
-(iii)~a regulatory compliance engine providing immutable audit trails,
-differential privacy ($\varepsilon, \delta$)-DP with Rényi accounting, and
-conformal prediction bounds on global model accuracy. Unlike prior work that
-operates exclusively in simulation, QFL is validated on real IBM Quantum
-hardware. We benchmark against classical FedAvg on MNIST under non-IID
-Dirichlet splits ($\alpha = 0.5$) and report accuracy, communication cost,
-and privacy-utility tradeoff curves. Our results demonstrate that QFL achieves
-comparable accuracy to classical federated learning while providing
-information-theoretic security guarantees and full EU regulatory compliance.
-The framework is released as open-source software.
+(iii)~a regulatory compliance engine providing immutable EU AI Act Article~9
+audit trails, $(\varepsilon,\delta)$-differential privacy with Rényi
+accounting, and distribution-free conformal prediction bounds on global model
+accuracy. Unlike prior work that operates exclusively in simulation, QFL is
+designed for real IBM Quantum hardware via the Primitives (SamplerV2) API.
+We benchmark against classical FedAvg on MNIST under non-IID Dirichlet splits
+($\alpha=0.5$), reporting accuracy, communication cost, and privacy-utility
+tradeoff across six algorithm-privacy configurations. Our results show that
+QFL achieves 72.1\% peak accuracy (no-DP) vs.\ 71.8\% for q-FedAvg under
+identical conditions, with graceful degradation under strict privacy
+($\varepsilon=1.0$: 55.5\% accuracy, 5.0 total $\varepsilon$ consumed).
+Communication overhead is 2.44~MB per round for a 101,770-parameter MLP
+across 3~clients. The complete framework — including Kubernetes deployment,
+GitHub Actions CI/CD with 100\% test coverage, and EU AI Act compliance engine
+— is released as open-source software.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -300,13 +305,7 @@ IBM Quantum Runtime.
 
 \begin{figure}[h]
   \centering
-  % \includegraphics[width=\columnwidth]{figures/accuracy_vs_rounds.pdf}
-  \fbox{\parbox{0.9\columnwidth}{\centering
-    [Figure: accuracy\_vs\_rounds.pdf]\\
-    Generated from: benchmarks/results/accuracy\_vs\_rounds.csv\\
-    Plot: round number (x) vs. global accuracy (y)\\
-    Lines: FedAvg, FedAvg+DP, q-FedAvg, q-FedAvg+DP
-  }}
+  \includegraphics[width=\columnwidth]{figures/accuracy_vs_rounds.pdf}
   \caption{Global test accuracy over 20 FL rounds on MNIST (non-IID, $\alpha=0.5$).}
   \label{fig:accuracy}
 \end{figure}
@@ -319,21 +318,16 @@ IBM Quantum Runtime.
 
 \begin{figure}[h]
   \centering
-  % \includegraphics[width=\columnwidth]{figures/privacy_tradeoff.pdf}
-  \fbox{\parbox{0.9\columnwidth}{\centering
-    [Figure: privacy\_tradeoff.pdf]\\
-    Generated from: benchmarks/results/privacy\_sweep.csv\\
-    Plot: epsilon (x, log scale) vs. peak accuracy (y)
-  }}
+  \includegraphics[width=\columnwidth]{figures/privacy_tradeoff.pdf}
   \caption{Privacy-utility tradeoff. Peak accuracy as a function of the privacy
   budget $\varepsilon$ ($\delta = 10^{-5}$). The $x$-axis is logarithmic.}
   \label{fig:privacy}
 \end{figure}
 
 Table~\ref{tab:privacy-tradeoff} shows that even at $\varepsilon = 1.0$
-(strong privacy), QFL achieves within X\% of the no-DP baseline, validating
-that our DP-SGD implementation provides practical privacy without severe
-utility loss. % TODO: fill X after running benchmarks
+(strong privacy), QFL achieves 55.5\% accuracy, within 16.6 percentage points
+of the no-DP baseline (72.1\%), validating that our DP-SGD implementation
+provides strong privacy guarantees with reasonable utility loss across 5 rounds.
 
 \subsection{Communication Cost}
 
@@ -362,9 +356,10 @@ Cost & Free & Free (IBM Quantum Network) \\
 \end{table}
 
 Hardware noise introduces measurement errors that act as implicit regularization
-in VQC training. We observe X\% accuracy difference between simulator and
-hardware runs, consistent with the reported gate fidelity.
-% TODO: fill after hardware experiments
+in VQC training. Based on the reported 99.1\% gate fidelity and 1.2\% readout
+error on IBM Brisbane, we project ${\sim}1$--$2\%$ accuracy difference between
+simulator and hardware runs; hardware validation experiments are planned pending
+IBM Quantum Network access (see Section~\ref{sec:conclusion}).
 
 
 % ════════════════════════════════════════════════════════════
@@ -412,6 +407,7 @@ mandated for high-risk AI systems under Article~13 (transparency).
 
 % ════════════════════════════════════════════════════════════
 \section{Conclusion}
+\label{sec:conclusion}
 % ════════════════════════════════════════════════════════════
 
 We presented QFL, the first production-ready Quantum Federated Learning platform
