@@ -136,7 +136,7 @@ if __name__ == "__main__":
     export_privacy_sweep(rows)
 
     print("\n Privacy-Utility Tradeoff")
-    print(f"{'ε Config':<20} {'Peak Acc':>10} {'Budget Used':>13} {'Formal ε':>10}")
+    print(f"{'eps Config':<20} {'Peak Acc':>10} {'Budget Used':>13} {'Formal eps':>10}")
     print("-" * 57)
     for r in rows:
         print(
