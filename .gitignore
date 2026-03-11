@@ -16,3 +16,4 @@ build/
 *.key
 *.crt
 infra/nginx/certs/
+benchmarks/results/
