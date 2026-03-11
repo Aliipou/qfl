@@ -595,9 +595,8 @@ else:
 
 This is a research project. Academic collaboration welcome.
 
-Contact: **ali.pourrahim@centria.fi**
-Institution: Centria University of Applied Sciences, Finland
-Supervisor: Centria RDI / NextIndustriAI project
+Contact: **alipourrahim.ap@gmail.com**
+
 
 ---
 
