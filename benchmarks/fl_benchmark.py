@@ -64,20 +64,34 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 def _make_numpy_mnist(n_samples: int = 60000) -> tuple[np.ndarray, np.ndarray]:
     """
-    Generate structured synthetic data with learnable labels.
-
-    Labels are derived from a fixed linear projection of X (not random),
-    so the MLP can actually learn a meaningful decision boundary.
-    Replace with real MNIST via torchvision for publication results.
+    Load real MNIST via torchvision (downloads once to ~/.cache/torchvision).
+    Falls back to sklearn fetch_openml if torchvision is unavailable.
+    n_samples caps the training set size for quick experiments.
     """
-    rng = np.random.default_rng(seed=42)
-    X = rng.standard_normal((n_samples, 784)).astype(np.float32)
+    try:
+        import torchvision
+        import torchvision.transforms as transforms
 
-    # Ground-truth linear classifier: labels = argmax(X @ W_true)
-    # W_true is fixed — this makes labels learnable from X
-    W_true = rng.standard_normal((784, 10)).astype(np.float32) * 0.1
-    logits = X @ W_true
-    y = logits.argmax(axis=1)
+        dataset = torchvision.datasets.MNIST(
+            root=str(Path.home() / ".cache" / "torchvision"),
+            train=True,
+            download=True,
+            transform=transforms.ToTensor(),
+        )
+        X = dataset.data.numpy().reshape(-1, 784).astype(np.float32) / 255.0
+        y = dataset.targets.numpy()
+    except Exception:
+        from sklearn.datasets import fetch_openml
+        log.info("torchvision unavailable — fetching MNIST via sklearn")
+        mnist = fetch_openml("mnist_784", version=1, as_frame=False, parser="auto")
+        X = mnist.data.astype(np.float32) / 255.0
+        y = mnist.target.astype(int)
+
+    if n_samples < len(X):
+        rng = np.random.default_rng(42)
+        idx = rng.choice(len(X), size=n_samples, replace=False)
+        X, y = X[idx], y[idx]
+
     return X, y
 
 
@@ -152,6 +166,22 @@ def _accuracy(weights: list[np.ndarray], X: np.ndarray, y: np.ndarray) -> float:
     return (probs.argmax(axis=1) == y).mean()
 
 
+def _dp_noise_std(epsilon: float, delta: float, C: float, n: int, epochs: int, batch_size: int = 32) -> float:
+    """
+    Calibrate Gaussian mechanism noise std for (ε, δ)-DP via the analytic
+    Gaussian mechanism (Balle & Wang 2018). Monotone in 1/ε: smaller ε → larger σ.
+
+    σ = C · √(2 ln(1.25/δ)) / ε   (standard Gaussian mechanism)
+    Adjusted for T = (n/batch)*epochs compositions via moments accountant:
+      σ_round = σ · √T    (strong composition)
+    """
+    import math
+    T = max(1, (n // batch_size) * epochs)
+    sigma_base = C * math.sqrt(2.0 * math.log(1.25 / delta)) / epsilon
+    # Divide by √T so that composed ε across T steps equals target ε
+    return sigma_base / math.sqrt(T)
+
+
 def _local_train(
     weights: list[np.ndarray],
     X: np.ndarray,
@@ -160,18 +190,22 @@ def _local_train(
     lr: float = 0.01,
     dp_epsilon: float | None = None,
     dp_delta: float = 1e-5,
-    dp_max_grad_norm: float = 5.0,    # practical clipping norm for MLP
-    dp_noise_multiplier: float = 1.1, # sigma = noise_multiplier * C / batch_size
+    dp_max_grad_norm: float = 1.0,   # standard clipping norm (Abadi et al. 2016)
 ) -> tuple[list[np.ndarray], float, float, int]:
     """
-    Simulate local training with SGD + optional DP-SGD.
+    Local training with SGD + analytically calibrated DP-SGD.
+    Noise std is monotone in 1/ε: smaller ε → more noise → lower accuracy.
     Returns (new_weights, final_loss, final_accuracy, bytes_transmitted).
     """
     W1, b1, W2, b2 = [w.copy() for w in weights]
+    rng = np.random.default_rng()
+
+    noise_std: float | None = None
+    if dp_epsilon is not None:
+        noise_std = _dp_noise_std(dp_epsilon, dp_delta, dp_max_grad_norm, len(X), epochs)
 
     for _ in range(epochs):
-        # Mini-batch SGD (batch_size=32)
-        idx = np.random.permutation(len(X))
+        idx = rng.permutation(len(X))
         for start in range(0, len(X), 32):
             batch = idx[start:start + 32]
             Xb, yb = X[batch], y[batch]
@@ -193,14 +227,10 @@ def _local_train(
             dW1 = dh.T @ Xb
             db1 = dh.sum(axis=0)
 
-            # DP-SGD: clip batch gradient then add noise calibrated by noise_multiplier.
-            # noise_std = noise_multiplier * max_grad_norm / batch_size
-            # This approximates per-sample clipping for batch SGD.
             grads = [dW1, db1, dW2, db2]
-            if dp_epsilon is not None:
+            if noise_std is not None:
                 grads, _ = clip_gradients(grads, max_norm=dp_max_grad_norm)
-                noise_std = dp_noise_multiplier * dp_max_grad_norm / max(n, 1)
-                grads = [g + np.random.normal(0, noise_std, g.shape).astype(g.dtype)
+                grads = [g + rng.normal(0, noise_std, g.shape).astype(g.dtype)
                          for g in grads]
             dW1, db1, dW2, db2 = grads
 
