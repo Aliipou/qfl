@@ -17,3 +17,9 @@ build/
 *.crt
 infra/nginx/certs/
 benchmarks/results/
+
+# Internal workflow files
+CLAUDE.md
+ANTI_GARBAGE_CHECKLIST.md
+New Text Document.txt
+*.db
