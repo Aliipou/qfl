@@ -1,0 +1,9 @@
+layer quantum_research = core, api, sdk, benchmarks, qfl, quantum, qkd
+layer authgate         = authgate
+layer banking          = banking, ledger
+layer fdk              = fdk, freedom_decision_kernel
+layer robotics         = robot, robotics
+forbid quantum_research -> authgate : research sandbox must not import production
+forbid quantum_research -> banking : research sandbox must not import production
+forbid quantum_research -> fdk : research sandbox must not import production
+forbid quantum_research -> robotics : research sandbox must not import production
