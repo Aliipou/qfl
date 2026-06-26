@@ -3,17 +3,32 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
 
-# qfl — Quantum Federated Learning Platform
+# qfl — Trustworthy Distributed Intelligence (research platform)
 
-**EU AI Act + GDPR compliant federated learning coordinator with quantum-key security.**
+**An independent research platform for trustworthy distributed intelligence under adversarial conditions** — federated learning, privacy, cryptographic agility, and adversarial robustness. *Quantum communication is one interchangeable provider, not the foundation of the architecture.*
 
 </div>
 
-## What This Is
+## What this is
 
-`qfl` is a FastAPI-based coordination server for federated learning rounds. Participating clients train locally and submit model weight updates; the coordinator aggregates them (FedAvg or Q-FedAvg) without seeing raw client data. Quantum Key Distribution (BB84 simulation) is scaffolded for Phase 2 key exchange.
+`qfl` (historically "Quantum Federated Learning") is a **research platform** — not a production system, and not a quantitative-finance library. Concretely it is a FastAPI coordination server for federated-learning rounds: clients train locally and submit weight updates; the coordinator aggregates them (FedAvg / Q-FedAvg) without seeing raw data. It investigates three questions:
 
-This is **not** a quantitative finance library. The repo name is an abbreviation of "Quantum Federated Learning."
+1. **Train without sharing raw data** — federated learning.
+2. **Establish trust** — audit, provenance, differential privacy, secure aggregation.
+3. **Survive attack** — Byzantine clients, poisoning, backdoors, model stealing.
+
+Security/transport is a **pluggable provider**, deliberately interchangeable so the platform outlives any single technology:
+
+```
+Research core (FL · privacy · aggregation · audit)
+        │  Provider interface
+        ├── Classical TLS
+        ├── PQC (post-quantum)
+        ├── BB84 / QKD  — simulation only (research tier, T3)
+        └── future (MPC, TEE, …)
+```
+
+> **Honest status:** there is **no real quantum security today**. BB84/QKD here is a Phase-2 *simulation* (research tier). If the goal is post-quantum banking, that belongs in AuthGate's PQC provider — **not** in qfl.
 
 ## Architecture
 
