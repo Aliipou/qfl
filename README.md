@@ -1,3 +1,5 @@
+**Live (graph):** [https://ali-qfl.vercel.app](https://ali-qfl.vercel.app)
+
 <div align="center">
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://python.org)
