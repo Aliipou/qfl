@@ -1,0 +1,17 @@
+name: boundaries
+
+# Architecture guard (dev/CI only — no runtime code).
+# qfl is the T3 research sandbox: it must NOT import any production layer
+# (authgate / banking / fdk / robotics). Research never reaches into production.
+on: [push, pull_request]
+
+jobs:
+  enforce-boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Research sandbox imports no production layer
+        run: PYTHONPATH=tools python -m boundary_guard check core api sdk --policy tools/policy.bgpolicy
